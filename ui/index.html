@@ -81,7 +81,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .tx-table tr:hover td{background:var(--green-dim);color:var(--text)}
 .tx-table tr:last-child td{border-bottom:none}
 .tx-status{display:inline-block;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600}
-.tx-approved{background:rgba(0,212,160,0.12);color:var(--green)}
+.tx-success-style{background:rgba(0,212,160,0.12);color:var(--green)}
 .tx-failed{background:rgba(255,77,106,0.12);color:var(--red)}
 .health-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .health-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
@@ -160,7 +160,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           </div>
         </div>
         <div class="form-row full"><div class="field"><label>Reference ID</label><input type="text" id="reference" value="order-001"></div></div>
-        <div class="form-row full"><div class="field"><label>Gateway URL</label><input type="text" id="gateway-url" value="http://localhost:8080"></div></div>
+        <div class="form-row">
+          <div class="field"><label>Payer ID</label><input type="text" id="payer-id" value="user-A"></div>
+          <div class="field"><label>Payee ID</label><input type="text" id="payee-id" value="user-B"></div>
+        </div>
+        <div class="form-row full"><div class="field"><label>Gateway URL</label><input type="text" id="gateway-url" value="http://13.235.9.56:30090/api"></div></div>
         <div style="display:flex;gap:10px;margin-top:4px">
           <button class="btn btn-primary" id="pay-btn" onclick="sendPayment()">▶ Send Payment</button>
           <button class="btn btn-ghost" onclick="generateRef()">🔀 Random Ref</button>
@@ -332,13 +336,13 @@ async function sendPayment(){
   addLog('info',`Processing ref=${reference} amount=${amount} currency=${currency}`);
   const t0=Date.now();
   try{
-    const res=await fetch(`${url}/pay`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount,currency,reference})});
+    const res=await fetch(`${url}/pay`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount,currency,reference,payer_id:document.getElementById("payer-id").value||"user-A",payee_id:document.getElementById("payee-id").value||"user-B"})});
     const lat=Date.now()-t0;latencies.push(lat);reqCount++;
     const data=await res.json();
-    if(res.ok&&data.status==='approved'){
+    if(res.ok&&data.status==='success'){
       respBox.className='response-box success fade-in';
       respBox.innerHTML=`<div class="res-label">Response · ${lat}ms · HTTP ${res.status}</div><div class="status-badge badge-ok">✓ approved</div><br>${formatJSON(data)}`;
-      addTx(data,amount,currency,'approved',lat);
+      addTx(data,amount,currency,'success',lat);
       addLog('ok',`Approved tx_id=${data.transaction_id} ref=${reference}`);
       if(currency==='INR'){totalINR+=amount;document.getElementById('rp-inr').textContent='₹'+totalINR.toLocaleString();}
     }else{
@@ -368,7 +372,7 @@ function formatJSON(obj){
 }
 function addTx(data,amount,currency,status,lat){
   transactions.unshift({ref:data.reference||'—',amount,currency,status,txid:data.transaction_id||'—',time:new Date().toLocaleTimeString(),lat});
-  const approved=transactions.filter(x=>x.status==='approved').length;
+  const approved=transactions.filter(x=>x.status==='success').length;
   const failed=transactions.filter(x=>x.status==='failed').length;
   document.getElementById('rp-total').textContent=transactions.length;
   document.getElementById('rp-approved').textContent=approved;
@@ -385,27 +389,33 @@ function updateMetrics(){
   if(latencies.length){const avg=Math.round(latencies.reduce((a,b)=>a+b,0)/latencies.length);document.getElementById('m-lat').textContent=avg+'ms';}
 }
 async function checkHealth(){
-  const url=document.getElementById('gateway-url').value.trim()||'http://localhost:8080';
+  const url=(document.getElementById('gateway-url')||{}).value||'http://localhost:8080';
   const respBox=document.getElementById('health-response');
-  respBox.className='response-box loading';respBox.innerHTML='<span style="color:var(--text-dim)">Checking /healthz...</span>';
-  document.getElementById('gw-dot').className='health-dot checking';
+  const gwDot=document.getElementById('gw-dot');
+  const gwLatency=document.getElementById('gw-latency');
+  const gwRows=document.getElementById('gw-health-rows');
+  const procDot=document.getElementById('proc-dot');
+  const procStatus=document.getElementById('proc-status');
+  if(!respBox) return;
+  respBox.className='response-box loading';
+  respBox.innerHTML='<span style="color:var(--text-dim)">Checking /healthz...</span>';
+  if(gwDot) gwDot.className='health-dot checking';
   const t0=Date.now();
   try{
     const res=await fetch(`${url}/healthz`);
     const lat=Date.now()-t0;const data=await res.json();
-    document.getElementById('gw-dot').className='health-dot ok';
-    document.getElementById('gw-latency').textContent=lat+'ms';
-    document.getElementById('gw-health-rows').innerHTML=`<div class="health-row"><span class="health-row-key">status</span><span class="health-row-val h-ok">✓ ${data.status}</span></div><div class="health-row"><span class="health-row-key">service</span><span class="health-row-val">${data.service||'payment-gateway'}</span></div><div class="health-row"><span class="health-row-key">latency</span><span class="health-row-val">${lat}ms</span></div>`;
-    document.getElementById('proc-dot').className='health-dot ok';
-    document.getElementById('proc-status').textContent='✓ reachable via gw';document.getElementById('proc-status').className='health-row-val h-ok';
+    if(gwDot) gwDot.className='health-dot ok';
+    if(gwLatency) gwLatency.textContent=lat+'ms';
+    if(gwRows) gwRows.innerHTML=`<div class="health-row"><span class="health-row-key">status</span><span class="health-row-val h-ok">✓ ${data.status}</span></div><div class="health-row"><span class="health-row-key">service</span><span class="health-row-val">${data.service||'payment-gateway'}</span></div><div class="health-row"><span class="health-row-key">latency</span><span class="health-row-val">${lat}ms</span></div>`;
+    if(procDot) procDot.className='health-dot ok';
+    if(procStatus){procStatus.textContent='✓ reachable via gw';procStatus.className='health-row-val h-ok';}
     respBox.className='response-box success fade-in';
     respBox.innerHTML=`<div class="res-label">GET /healthz · ${lat}ms · HTTP ${res.status}</div>${formatJSON(data)}`;
     addLog('ok',`healthz OK latency=${lat}ms service=${data.service}`);
   }catch(err){
-    document.getElementById('gw-dot').className='health-dot err';
-    document.getElementById('proc-dot').className='health-dot err';
-    respBox.className='response-box error fade-in';
-    respBox.innerHTML=`<div class="status-badge badge-err">✗ unreachable</div><br><span style="color:var(--red)">${err.message}</span>`;
+    if(gwDot) gwDot.className='health-dot err';
+    if(procDot) procDot.className='health-dot err';
+    if(respBox){respBox.className='response-box error fade-in';respBox.innerHTML=`<div class="status-badge badge-err">✗ unreachable</div><br><span style="color:var(--red)">${err.message}</span>`;}
     addLog('err',`healthz FAILED: ${err.message}`);
   }
 }

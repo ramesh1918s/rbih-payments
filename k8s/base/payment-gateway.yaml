@@ -36,45 +36,57 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: payment-gateway
-          image: rbih-hiring/devopschallenge/paymentgateway:1.0.0
-          imagePullPolicy: IfNotPresent
+          image: shivaram1918/rbih-payment-gateway:1.0.0
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
           env:
+            - name: PORT
+              value: "8080"
             - name: PROCESSOR_URL
-              value: "http://payment-processor:8080"
+              value: "http://payment-processor.payments.svc.cluster.local:8080"
+            - name: REQUEST_TIMEOUT_SECONDS
+              value: "10"
           resources:
             requests:
               cpu: "100m"
-              memory: "64Mi"
+              memory: "128Mi"
             limits:
               cpu: "500m"
-              memory: "128Mi"
+              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 3
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 3
+            initialDelaySeconds: 10
             periodSeconds: 5
-            failureThreshold: 2
+            failureThreshold: 3
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               app: payment-gateway

@@ -1,16 +1,3 @@
-# Default deny all ingress and egress in the payments namespace
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: payments
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
----
-# Allow external traffic → payment-gateway only
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -23,90 +10,9 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    - ports:
-        - port: 8080
-          protocol: TCP
----
-# Allow payment-gateway → payment-processor only
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-gateway-to-processor
-  namespace: payments
-spec:
-  podSelector:
-    matchLabels:
-      app: payment-processor
-  policyTypes:
-    - Ingress
-  ingress:
     - from:
-        - podSelector:
-            matchLabels:
-              app: payment-gateway
-      ports:
-        - port: 8080
-          protocol: TCP
----
-# Allow gateway egress to processor + DNS
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-gateway-egress
-  namespace: payments
-spec:
-  podSelector:
-    matchLabels:
-      app: payment-gateway
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: payment-processor
-      ports:
-        - port: 8080
-    - ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
----
-# Allow processor egress to DNS only (no outbound to internet)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-processor-egress-dns
-  namespace: payments
-spec:
-  podSelector:
-    matchLabels:
-      app: payment-processor
-  policyTypes:
-    - Egress
-  egress:
-    - ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
-          protocol: TCP
----
-# Allow Prometheus scraping from monitoring namespace
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-prometheus-scrape
-  namespace: payments
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
+        - ipBlock:
+            cidr: 0.0.0.0/0   # 🔥 allow internet
       ports:
         - port: 8080
           protocol: TCP

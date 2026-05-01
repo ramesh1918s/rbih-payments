@@ -1,23 +1,17 @@
-# syntax=docker/dockerfile:1
-FROM golang:1.22-alpine AS builder
+FROM python:3.12-slim AS builder
 WORKDIR /app
-RUN apk add --no-cache git ca-certificates
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
-    -o payment-gateway .
-
-# Final stage: minimal image
-FROM scratch
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /app/payment-gateway /payment-gateway
-
-# Run as non-root UID
-USER 65534
-
+FROM python:3.12-slim AS runtime
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY --chown=appuser:appgroup main.py .
+USER appuser
+ENV PORT=8080
+ENV PROCESSOR_URL=http://payment-processor:8080
+ENV REQUEST_TIMEOUT_SECONDS=10
 EXPOSE 8080
-ENTRYPOINT ["/payment-gateway"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "--timeout", "30", "--access-logfile", "-", "--error-logfile", "-", "main:app"]
