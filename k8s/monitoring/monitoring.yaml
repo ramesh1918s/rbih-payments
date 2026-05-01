@@ -5,7 +5,9 @@ metadata:
   labels:
     kubernetes.io/metadata.name: monitoring
 ---
-# Prometheus ConfigMap
+# ─────────────────────────────────────────
+# PROMETHEUS CONFIG
+# ─────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -92,7 +94,42 @@ data:
             annotations:
               summary: "Pod {{ $labels.pod }} is not ready"
 ---
-# Prometheus Deployment
+# ─────────────────────────────────────────
+# PROMETHEUS RBAC
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, nodes, nodes/metrics]
+    verbs: [get, list, watch]
+  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+---
+# ─────────────────────────────────────────
+# PROMETHEUS DEPLOYMENT
+# ─────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -144,37 +181,6 @@ spec:
           emptyDir: {}
 ---
 apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus
-  namespace: monitoring
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: prometheus
-rules:
-  - apiGroups: [""]
-    resources: [pods, services, endpoints]
-    verbs: [get, list, watch]
-  - apiGroups: [""]
-    resources: [nodes, nodes/metrics]
-    verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: prometheus
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus
-subjects:
-  - kind: ServiceAccount
-    name: prometheus
-    namespace: monitoring
----
-apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
@@ -186,7 +192,171 @@ spec:
     - port: 9090
       targetPort: 9090
 ---
-# Grafana
+# ─────────────────────────────────────────
+# GRAFANA — Datasource auto-provision
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false
+---
+# ─────────────────────────────────────────
+# GRAFANA — Payments dashboard auto-provision
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: payments
+        orgId: 1
+        folder: Payments
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-payments
+  namespace: monitoring
+data:
+  payments.json: |
+    {
+      "title": "RBIH Payments",
+      "uid": "rbih-payments",
+      "schemaVersion": 36,
+      "version": 1,
+      "refresh": "15s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate (req/s)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total[1m])) by (job)",
+              "legendFormat": "{{ job }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "reqps"
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "P99 Latency (s)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))",
+              "legendFormat": "p99 {{ job }}"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))",
+              "legendFormat": "p50 {{ job }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s" }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Error Rate (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (job) / sum(rate(http_requests_total[5m])) by (job)",
+              "legendFormat": "errors {{ job }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Scrape Targets Up",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 8, "w": 6, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(up{job=~\"payment-gateway|payment-processor\"})",
+              "legendFormat": "Pods Up"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 2 },
+                  { "color": "green", "value": 4 }
+                ]
+              },
+              "mappings": []
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" }
+        },
+        {
+          "id": 5,
+          "title": "Total Requests (session)",
+          "type": "stat",
+          "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(http_requests_total) by (job)",
+              "legendFormat": "{{ job }}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "value" }
+        }
+      ]
+    }
+---
+# ─────────────────────────────────────────
+# GRAFANA DEPLOYMENT
+# ─────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -208,10 +378,24 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            - name: GF_SECURITY_ADMIN_PASSWORD
+            - name: GF_SECURITY_ADMIN_USER
               value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secret
+                  key: admin-password
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "false"
+            - name: GF_PATHS_PROVISIONING
+              value: "/etc/grafana/provisioning"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard-payments
+              mountPath: /var/lib/grafana/dashboards
           resources:
             requests:
               cpu: "100m"
@@ -219,6 +403,25 @@ spec:
             limits:
               cpu: "300m"
               memory: "256Mi"
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-payments
+          configMap:
+            name: grafana-dashboard-payments
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secret
+  namespace: monitoring
+type: Opaque
+stringData:
+  admin-password: "rbih@admin2026"
 ---
 apiVersion: v1
 kind: Service
