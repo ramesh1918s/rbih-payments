@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RBIH Payment Gateway — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#03060f;--bg2:#070d1f;--bg3:#0c1428;--bg4:#111d35;
+  --green:#00d4a0;--green-dim:rgba(0,212,160,0.08);--green-glow:rgba(0,212,160,0.3);
+  --amber:#f5a623;--red:#ff4d6a;--blue:#4d9fff;--purple:#a78bfa;
+  --border:rgba(0,212,160,0.12);--border-b:rgba(0,212,160,0.35);
+  --text:#dde8ff;--text-dim:#6a7d9f;--text-muted:#2d3d55;
+  --mono:'IBM Plex Mono',monospace;--disp:'Syne',sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;display:flex;flex-direction:column;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,160,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,160,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.topbar{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(3,6,15,0.9);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);flex-shrink:0}
+.logo{font-family:var(--disp);font-size:15px;font-weight:800;color:var(--green);letter-spacing:-0.5px}
+.logo span{color:var(--text-dim);font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.svc-pill{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 10px;border-radius:100px;border:1px solid var(--border);color:var(--text-dim)}
+.svc-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite}
+.svc-pill.offline .dot{background:var(--red);box-shadow:0 0 6px var(--red);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.main{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
+.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sidebar-section{padding:14px 16px 8px}
+.sidebar-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--text-dim);transition:all 0.15s;margin-bottom:2px;border:1px solid transparent}
+.nav-item:hover{background:var(--green-dim);color:var(--text)}
+.nav-item.active{background:var(--green-dim);color:var(--green);border-color:var(--border-b)}
+.nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.sidebar-divider{height:1px;background:var(--border);margin:8px 16px}
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.tab{padding:10px 18px;font-size:12px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.panel{flex:1;overflow-y:auto;padding:20px;display:none}
+.panel.active{display:block}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;transition:border-color 0.2s}
+.card:hover{border-color:var(--border-b)}
+.card-title{font-family:var(--disp);font-size:15px;font-weight:700;margin-bottom:4px;color:var(--text)}
+.card-sub{font-size:11px;color:var(--text-dim);margin-bottom:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.field label{display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.field input,.field select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color 0.15s}
+.field input:focus,.field select:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,212,160,0.1)}
+.field select option{background:var(--bg3)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;border:none;font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s}
+.btn-primary{background:var(--green);color:#03060f}
+.btn-primary:hover{opacity:0.85;transform:translateY(-1px)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(--bg3);color:var(--text-dim);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border-b);color:var(--text)}
+.response-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:12px;line-height:1.8;min-height:80px;margin-top:12px;position:relative;overflow:hidden}
+.response-box.success{border-color:rgba(0,212,160,0.4);background:rgba(0,212,160,0.04)}
+.response-box.error{border-color:rgba(255,77,106,0.4);background:rgba(255,77,106,0.04)}
+.response-box.loading::after{content:'';position:absolute;bottom:0;left:0;height:2px;background:var(--green);animation:load 1.5s ease infinite;width:40%}
+@keyframes load{0%{left:0;width:0}50%{left:20%;width:60%}100%{left:100%;width:0}}
+.json-key{color:var(--purple)}.json-str{color:var(--amber)}.json-num{color:var(--blue)}.json-bool{color:var(--green)}
+.res-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;margin-bottom:8px}
+.badge-ok{background:rgba(0,212,160,0.12);color:var(--green);border:1px solid rgba(0,212,160,0.3)}
+.badge-err{background:rgba(255,77,106,0.12);color:var(--red);border:1px solid rgba(255,77,106,0.3)}
+.badge-warn{background:rgba(245,166,35,0.12);color:var(--amber);border:1px solid rgba(245,166,35,0.3)}
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+.metric-val{font-family:var(--disp);font-size:24px;font-weight:800;color:var(--green);display:block;line-height:1}
+.metric-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:6px}
+.metric-card.red .metric-val{color:var(--red)}
+.tx-table{width:100%;border-collapse:collapse}
+.tx-table th{text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);padding:8px 12px;border-bottom:1px solid var(--border)}
+.tx-table td{padding:10px 12px;border-bottom:1px solid rgba(0,212,160,0.06);font-size:12px;color:var(--text-dim)}
+.tx-table tr:hover td{background:var(--green-dim);color:var(--text)}
+.tx-table tr:last-child td{border-bottom:none}
+.tx-status{display:inline-block;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600}
+.tx-approved{background:rgba(0,212,160,0.12);color:var(--green)}
+.tx-failed{background:rgba(255,77,106,0.12);color:var(--red)}
+.health-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.health-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
+.health-svc{font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.health-dot{width:8px;height:8px;border-radius:50%}
+.health-dot.ok{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
+.health-dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+.health-dot.checking{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.health-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px}
+.health-row:last-child{border-bottom:none}
+.health-row-key{color:var(--text-dim)}.health-row-val{color:var(--text)}
+.h-ok{color:var(--green)}.h-err{color:var(--red)}.h-chk{color:var(--amber)}
+.log-stream{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:11px;line-height:1.9;max-height:320px;overflow-y:auto}
+.log-entry{display:block;margin-bottom:2px}
+.log-time{color:var(--text-muted)}.log-info{color:var(--blue)}.log-ok{color:var(--green)}.log-warn{color:var(--amber)}.log-err{color:var(--red)}
+.right-panel{width:240px;background:var(--bg2);border-left:1px solid var(--border);flex-shrink:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.rp-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.mini-stat{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.mini-stat:last-child{border-bottom:none}
+.mini-stat-key{font-size:11px;color:var(--text-dim)}.mini-stat-val{font-size:11px;color:var(--text);font-weight:500}
+.mini-stat-val.ok{color:var(--green)}.mini-stat-val.err{color:var(--red)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeUp 0.3s ease both}
+@media(max-width:700px){.sidebar,.right-panel{display:none}.metrics-grid{grid-template-columns:1fr 1fr}.health-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">RBIH <span>Payment Gateway</span></div>
+  <div class="topbar-right">
+    <div class="svc-pill" id="pill-gateway"><div class="dot"></div><span>gateway :8080</span></div>
+    <div class="svc-pill" id="pill-processor"><div class="dot"></div><span>processor :8080</span></div>
+  </div>
+</div>
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <div class="nav-item active" onclick="switchTab('pay')"><span class="nav-icon">💳</span>New Payment</div>
+      <div class="nav-item" onclick="switchTab('transactions')"><span class="nav-icon">📋</span>Transactions</div>
+      <div class="nav-item" onclick="switchTab('health')"><span class="nav-icon">❤️</span>Health Check</div>
+      <div class="nav-item" onclick="switchTab('metrics')"><span class="nav-icon">📊</span>Metrics</div>
+      <div class="nav-item" onclick="switchTab('logs')"><span class="nav-icon">🖥️</span>Live Logs</div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Services</div>
+      <div class="nav-item"><span class="nav-icon" style="color:var(--green)">●</span>payment-gateway</div>
+      <div class="nav-item"><span class="nav-icon" style="color:var(--green)">●</span>payment-processor</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="tabs">
+      <div class="tab active" id="tab-pay" onclick="switchTab('pay')">💳 New Payment</div>
+      <div class="tab" id="tab-transactions" onclick="switchTab('transactions')">📋 Transactions</div>
+      <div class="tab" id="tab-health" onclick="switchTab('health')">❤️ Health</div>
+      <div class="tab" id="tab-metrics" onclick="switchTab('metrics')">📊 Metrics</div>
+      <div class="tab" id="tab-logs" onclick="switchTab('logs')">🖥️ Logs</div>
+    </div>
+
+    <!-- PAY -->
+    <div class="panel active" id="panel-pay">
+      <div class="card fade-in">
+        <div class="card-title">Send Payment</div>
+        <div class="card-sub">POST /pay → payment-gateway → payment-processor</div>
+        <div class="form-row">
+          <div class="field"><label>Amount</label><input type="number" id="amount" value="1500" min="1" step="0.01"></div>
+          <div class="field"><label>Currency</label>
+            <select id="currency">
+              <option value="INR">INR — Indian Rupee</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row full"><div class="field"><label>Reference ID</label><input type="text" id="reference" value="order-001"></div></div>
+        <div class="form-row full"><div class="field"><label>Gateway URL</label><input type="text" id="gateway-url" value="http://localhost:8080"></div></div>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button class="btn btn-primary" id="pay-btn" onclick="sendPayment()">▶ Send Payment</button>
+          <button class="btn btn-ghost" onclick="generateRef()">🔀 Random Ref</button>
+        </div>
+        <div id="pay-response" class="response-box" style="margin-top:16px"><div class="res-label">Response</div><span style="color:var(--text-muted)">Awaiting request...</span></div>
+      </div>
+      <div class="card fade-in">
+        <div class="card-title">Raw Request Preview</div>
+        <div class="card-sub">curl command that will be executed</div>
+        <div class="response-box" id="curl-preview" style="font-size:11px;line-height:1.7"></div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="panel" id="panel-transactions">
+      <div class="metrics-grid fade-in">
+        <div class="metric-card"><span class="metric-val" id="tx-total">0</span><div class="metric-lbl">Total Txns</div></div>
+        <div class="metric-card"><span class="metric-val" id="tx-success" style="color:var(--green)">0</span><div class="metric-lbl">Approved</div></div>
+        <div class="metric-card red"><span class="metric-val" id="tx-fail">0</span><div class="metric-lbl">Failed</div></div>
+      </div>
+      <div class="card fade-in">
+        <div class="card-title">Transaction History</div>
+        <table class="tx-table">
+          <thead><tr><th>Reference</th><th>Amount</th><th>Currency</th><th>Status</th><th>Tx ID</th><th>Time</th></tr></thead>
+          <tbody id="tx-body"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px">No transactions yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HEALTH -->
+    <div class="panel" id="panel-health">
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="checkHealth()">🔍 Check Health</button>
+        <button class="btn btn-ghost" onclick="startAutoHealth()">🔄 Auto-refresh (5s)</button>
+      </div>
+      <div class="health-grid fade-in">
+        <div class="health-card">
+          <div class="health-svc"><div class="health-dot checking" id="gw-dot"></div>payment-gateway</div>
+          <div id="gw-health-rows">
+            <div class="health-row"><span class="health-row-key">status</span><span class="health-row-val h-chk">—</span></div>
+            <div class="health-row"><span class="health-row-key">endpoint</span><span class="health-row-val">:8080/healthz</span></div>
+            <div class="health-row"><span class="health-row-key">latency</span><span class="health-row-val" id="gw-latency">—</span></div>
+          </div>
+        </div>
+        <div class="health-card">
+          <div class="health-svc"><div class="health-dot checking" id="proc-dot"></div>payment-processor</div>
+          <div>
+            <div class="health-row"><span class="health-row-key">status</span><span class="health-row-val h-chk" id="proc-status">—</span></div>
+            <div class="health-row"><span class="health-row-key">endpoint</span><span class="health-row-val">:8080/healthz</span></div>
+            <div class="health-row"><span class="health-row-key">note</span><span class="health-row-val" style="color:var(--text-muted)">internal only</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card fade-in" style="margin-top:0">
+        <div class="card-title">Health Response</div>
+        <div class="response-box" id="health-response"><span style="color:var(--text-muted)">Click "Check Health" to ping /healthz</span></div>
+      </div>
+    </div>
+
+    <!-- METRICS -->
+    <div class="panel" id="panel-metrics">
+      <div class="metrics-grid fade-in">
+        <div class="metric-card"><span class="metric-val" id="m-req">0</span><div class="metric-lbl">Total Requests</div></div>
+        <div class="metric-card"><span class="metric-val" id="m-lat" style="color:var(--amber)">—</span><div class="metric-lbl">Avg Latency</div></div>
+        <div class="metric-card"><span class="metric-val" id="m-rps" style="color:var(--blue)">0</span><div class="metric-lbl">Session Req</div></div>
+      </div>
+      <div class="card fade-in">
+        <div class="card-title">Prometheus Metrics</div>
+        <div class="card-sub">GET /metrics — raw Prometheus exposition format</div>
+        <button class="btn btn-primary" onclick="fetchMetrics()">📊 Fetch /metrics</button>
+        <div class="response-box" id="metrics-response" style="font-size:11px;max-height:300px;overflow-y:auto;margin-top:12px"><span style="color:var(--text-muted)">Click to fetch metrics from gateway...</span></div>
+      </div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="panel" id="panel-logs">
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="addLog('info','Log stream started — connect gateway to see real logs')">▶ Start</button>
+        <button class="btn btn-ghost" onclick="clearLogs()">🗑️ Clear</button>
+      </div>
+      <div class="card fade-in">
+        <div class="card-title">Structured JSON Logs</div>
+        <div class="card-sub">Simulated slog JSON output from both services</div>
+        <div class="log-stream" id="log-stream">
+          <span class="log-entry"><span class="log-time">00:00:00</span> <span class="log-info">INFO</span> payment-gateway starting addr=:8080 processor_url=http://payment-processor:8080</span>
+          <span class="log-entry"><span class="log-time">00:00:00</span> <span class="log-info">INFO</span> payment-processor starting addr=:8080</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div>
+      <div class="rp-title">Session Stats</div>
+      <div class="mini-stat"><span class="mini-stat-key">Total Sent</span><span class="mini-stat-val ok" id="rp-total">0</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">Approved</span><span class="mini-stat-val ok" id="rp-approved">0</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">Failed</span><span class="mini-stat-val err" id="rp-failed">0</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">Total INR</span><span class="mini-stat-val" id="rp-inr">₹0</span></div>
+    </div>
+    <div>
+      <div class="rp-title">K8s Config</div>
+      <div class="mini-stat"><span class="mini-stat-key">Namespace</span><span class="mini-stat-val">payments</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">GW Replicas</span><span class="mini-stat-val ok">2→10</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">PR Replicas</span><span class="mini-stat-val ok">2→10</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">NetworkPolicy</span><span class="mini-stat-val ok">zero-trust</span></div>
+      <div class="mini-stat"><span class="mini-stat-key">PDB</span><span class="mini-stat-val ok">minAvail:1</span></div>
+    </div>
+    <div>
+      <div class="rp-title">Alert Rules</div>
+      <div class="mini-stat"><span class="mini-stat-key" style="font-size:10px;color:var(--green)">✓ HighErrorRate</span><span class="mini-stat-val ok">OK</span></div>
+      <div class="mini-stat"><span class="mini-stat-key" style="font-size:10px;color:var(--green)">✓ HighLatency</span><span class="mini-stat-val ok">OK</span></div>
+      <div class="mini-stat"><span class="mini-stat-key" style="font-size:10px;color:var(--green)">✓ ProcessorDown</span><span class="mini-stat-val ok">OK</span></div>
+      <div class="mini-stat"><span class="mini-stat-key" style="font-size:10px;color:var(--green)">✓ PodNotReady</span><span class="mini-stat-val ok">OK</span></div>
+    </div>
+    <div>
+      <div class="rp-title">Quick Start</div>
+      <div style="font-size:10px;color:var(--text-muted);line-height:1.8">
+        1. Run setup.sh<br>
+        2. make forward-gw<br>
+        3. Use this UI at<br>
+        &nbsp;&nbsp;<span style="color:var(--green)">localhost:8080</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let transactions=[],totalINR=0,reqCount=0,latencies=[],autoHealthTimer=null;
+
+function switchTab(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+function generateRef(){
+  const p=['order','txn','pay','inv','ref'][Math.floor(Math.random()*5)];
+  document.getElementById('reference').value=p+'-'+Math.floor(Math.random()*9000+1000);
+  updateCurlPreview();
+}
+function updateCurlPreview(){
+  const url=document.getElementById('gateway-url').value||'http://localhost:8080';
+  const amount=document.getElementById('amount').value||'0';
+  const currency=document.getElementById('currency').value;
+  const ref=document.getElementById('reference').value||'order-001';
+  document.getElementById('curl-preview').innerHTML=
+    `<span style="color:var(--green)">curl</span> -X POST ${url}/pay \\<br>`+
+    `  -H <span style="color:var(--amber)">'Content-Type: application/json'</span> \\<br>`+
+    `  -d '<span style="color:var(--blue)">{<br>    "amount": ${amount},<br>    "currency": "${currency}",<br>    "reference": "${ref}"<br>  }</span>'`;
+}
+['amount','currency','reference','gateway-url'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('input',updateCurlPreview);
+});
+updateCurlPreview();
+
+async function sendPayment(){
+  const btn=document.getElementById('pay-btn');
+  const respBox=document.getElementById('pay-response');
+  const url=document.getElementById('gateway-url').value.trim()||'http://localhost:8080';
+  const amount=parseFloat(document.getElementById('amount').value);
+  const currency=document.getElementById('currency').value;
+  const reference=document.getElementById('reference').value.trim()||'order-001';
+  if(!amount||amount<=0){showError(respBox,'Amount must be > 0');return;}
+  btn.disabled=true;btn.textContent='⏳ Sending...';
+  respBox.className='response-box loading';
+  respBox.innerHTML='<div class="res-label">Response</div><span style="color:var(--text-dim)">Sending to payment-gateway...</span>';
+  addLog('info',`Processing ref=${reference} amount=${amount} currency=${currency}`);
+  const t0=Date.now();
+  try{
+    const res=await fetch(`${url}/pay`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount,currency,reference})});
+    const lat=Date.now()-t0;latencies.push(lat);reqCount++;
+    const data=await res.json();
+    if(res.ok&&data.status==='approved'){
+      respBox.className='response-box success fade-in';
+      respBox.innerHTML=`<div class="res-label">Response · ${lat}ms · HTTP ${res.status}</div><div class="status-badge badge-ok">✓ approved</div><br>${formatJSON(data)}`;
+      addTx(data,amount,currency,'approved',lat);
+      addLog('ok',`Approved tx_id=${data.transaction_id} ref=${reference}`);
+      if(currency==='INR'){totalINR+=amount;document.getElementById('rp-inr').textContent='₹'+totalINR.toLocaleString();}
+    }else{
+      respBox.className='response-box error fade-in';
+      respBox.innerHTML=`<div class="res-label">Response · ${lat}ms · HTTP ${res.status}</div><div class="status-badge badge-err">✗ error</div><br>${formatJSON(data)}`;
+      addTx({reference,transaction_id:'—'},amount,currency,'failed',lat);
+      addLog('err',`Failed ref=${reference} status=${res.status}`);
+    }
+    updateMetrics();
+  }catch(err){
+    const lat=Date.now()-t0;
+    respBox.className='response-box error fade-in';
+    respBox.innerHTML=`<div class="res-label">Error · ${lat}ms</div><div class="status-badge badge-err">✗ unreachable</div><br><span style="color:var(--red)">${err.message}</span><br><br><span style="color:var(--text-muted)">Run: kubectl port-forward svc/payment-gateway 8080:8080 -n payments</span>`;
+    addTx({reference,transaction_id:'—'},amount,currency,'failed',lat);
+    addLog('err',`Connection failed: ${err.message}`);
+    updateMetrics();
+  }
+  btn.disabled=false;btn.textContent='▶ Send Payment';generateRef();
+}
+function showError(el,msg){el.className='response-box error fade-in';el.innerHTML=`<div class="status-badge badge-err">✗</div><span style="color:var(--red)">${msg}</span>`;}
+function formatJSON(obj){
+  return JSON.stringify(obj,null,2)
+    .replace(/("[\w_]+"): /g,'<span class="json-key">$1</span>: ')
+    .replace(/: (".*?")/g,': <span class="json-str">$1</span>')
+    .replace(/: (\d+\.?\d*)/g,': <span class="json-num">$1</span>')
+    .replace(/: (true|false)/g,': <span class="json-bool">$1</span>');
+}
+function addTx(data,amount,currency,status,lat){
+  transactions.unshift({ref:data.reference||'—',amount,currency,status,txid:data.transaction_id||'—',time:new Date().toLocaleTimeString(),lat});
+  const approved=transactions.filter(x=>x.status==='approved').length;
+  const failed=transactions.filter(x=>x.status==='failed').length;
+  document.getElementById('rp-total').textContent=transactions.length;
+  document.getElementById('rp-approved').textContent=approved;
+  document.getElementById('rp-failed').textContent=failed;
+  document.getElementById('tx-total').textContent=transactions.length;
+  document.getElementById('tx-success').textContent=approved;
+  document.getElementById('tx-fail').textContent=failed;
+  const tbody=document.getElementById('tx-body');
+  tbody.innerHTML=transactions.slice(0,50).map(tx=>`<tr><td style="color:var(--text)">${tx.ref}</td><td>${tx.amount.toLocaleString()}</td><td>${tx.currency}</td><td><span class="tx-status tx-${tx.status}">${tx.status}</span></td><td style="font-size:10px;color:var(--text-muted)">${tx.txid.substring(0,12)}${tx.txid.length>12?'…':''}</td><td style="color:var(--text-muted)">${tx.time}</td></tr>`).join('');
+}
+function updateMetrics(){
+  document.getElementById('m-req').textContent=reqCount;
+  document.getElementById('m-rps').textContent=reqCount;
+  if(latencies.length){const avg=Math.round(latencies.reduce((a,b)=>a+b,0)/latencies.length);document.getElementById('m-lat').textContent=avg+'ms';}
+}
+async function checkHealth(){
+  const url=document.getElementById('gateway-url').value.trim()||'http://localhost:8080';
+  const respBox=document.getElementById('health-response');
+  respBox.className='response-box loading';respBox.innerHTML='<span style="color:var(--text-dim)">Checking /healthz...</span>';
+  document.getElementById('gw-dot').className='health-dot checking';
+  const t0=Date.now();
+  try{
+    const res=await fetch(`${url}/healthz`);
+    const lat=Date.now()-t0;const data=await res.json();
+    document.getElementById('gw-dot').className='health-dot ok';
+    document.getElementById('gw-latency').textContent=lat+'ms';
+    document.getElementById('gw-health-rows').innerHTML=`<div class="health-row"><span class="health-row-key">status</span><span class="health-row-val h-ok">✓ ${data.status}</span></div><div class="health-row"><span class="health-row-key">service</span><span class="health-row-val">${data.service||'payment-gateway'}</span></div><div class="health-row"><span class="health-row-key">latency</span><span class="health-row-val">${lat}ms</span></div>`;
+    document.getElementById('proc-dot').className='health-dot ok';
+    document.getElementById('proc-status').textContent='✓ reachable via gw';document.getElementById('proc-status').className='health-row-val h-ok';
+    respBox.className='response-box success fade-in';
+    respBox.innerHTML=`<div class="res-label">GET /healthz · ${lat}ms · HTTP ${res.status}</div>${formatJSON(data)}`;
+    addLog('ok',`healthz OK latency=${lat}ms service=${data.service}`);
+  }catch(err){
+    document.getElementById('gw-dot').className='health-dot err';
+    document.getElementById('proc-dot').className='health-dot err';
+    respBox.className='response-box error fade-in';
+    respBox.innerHTML=`<div class="status-badge badge-err">✗ unreachable</div><br><span style="color:var(--red)">${err.message}</span>`;
+    addLog('err',`healthz FAILED: ${err.message}`);
+  }
+}
+function startAutoHealth(){
+  if(autoHealthTimer){clearInterval(autoHealthTimer);autoHealthTimer=null;addLog('warn','Auto health-check stopped');return;}
+  checkHealth();autoHealthTimer=setInterval(checkHealth,5000);addLog('info','Auto health-check started (5s)');
+}
+async function fetchMetrics(){
+  const url=document.getElementById('gateway-url').value.trim()||'http://localhost:8080';
+  const el=document.getElementById('metrics-response');
+  el.className='response-box loading';el.innerHTML='<span style="color:var(--text-dim)">Fetching /metrics...</span>';
+  try{
+    const res=await fetch(`${url}/metrics`);const text=await res.text();
+    el.className='response-box fade-in';
+    el.innerHTML='<pre style="white-space:pre-wrap;font-size:10px;color:var(--text-dim)">'+
+      text.replace(/^# HELP .*/gm,m=>`<span style="color:var(--text-muted)">${m}</span>`)
+          .replace(/^# TYPE .*/gm,m=>`<span style="color:var(--purple)">${m}</span>`)
+          .replace(/^(\w+)/gm,m=>`<span style="color:var(--green)">${m}</span>`)+'</pre>';
+    addLog('info','Fetched Prometheus metrics from /metrics');
+  }catch(err){
+    el.className='response-box error fade-in';
+    el.innerHTML=`<span style="color:var(--red)">${err.message}</span><br><span style="color:var(--text-muted)">Is port-forward running?</span>`;
+  }
+}
+function addLog(level,msg){
+  const stream=document.getElementById('log-stream');
+  const now=new Date().toLocaleTimeString();
+  const cls={info:'log-info',ok:'log-ok',warn:'log-warn',err:'log-err'}[level]||'log-info';
+  const lvl={info:'INFO',ok:' OK ',warn:'WARN',err:'ERR '}[level]||'INFO';
+  const entry=document.createElement('span');
+  entry.className='log-entry fade-in';
+  entry.innerHTML=`<span class="log-time">${now}</span> <span class="${cls}">${lvl}</span> ${msg}`;
+  stream.appendChild(entry);stream.scrollTop=stream.scrollHeight;
+}
+function clearLogs(){document.getElementById('log-stream').innerHTML='';addLog('info','Log stream cleared');}
+updateCurlPreview();
+setTimeout(()=>addLog('info','UI ready — configure Gateway URL and send a payment'),500);
+</script>
+</body>
+</html>

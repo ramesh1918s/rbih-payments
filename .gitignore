@@ -1,0 +1,20 @@
+# Binaries
+services/payment-gateway/payment-gateway
+services/payment-processor/payment-processor
+
+# Backup files created by setup.sh sed
+k8s/base/*.bak
+k8s/**/*.bak
+
+# Go
+*.test
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
