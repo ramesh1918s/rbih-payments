@@ -2,7 +2,8 @@
 set -euo pipefail
 
 CLUSTER_NAME="rbih-payments"
-REGISTRY_NAME="rbih-registry"
+REGISTRY_IMAGE_1="shivaram1918/rbih-payment-gateway:1.0.0"
+REGISTRY_IMAGE_2="shivaram1918/rbih-payment-processor:1.0.0"
 REGISTRY_PORT="5001"
 
 log() { echo "▶ $*"; }
