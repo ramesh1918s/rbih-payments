@@ -36,12 +36,15 @@ on:
 
       skip_scan:
         description: "⚡ Skip Trivy security scan?"
+<<<<<<< Updated upstream
         required: false
         type: boolean
         default: false
 
       force_deploy:
         description: "🚀 Force deploy even if no changes?"
+=======
+>>>>>>> Stashed changes
         required: false
         type: boolean
         default: false
@@ -50,12 +53,16 @@ concurrency:
   group: deploy-${{ github.event.inputs.environment || 'dev' }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 env:
   DOCKERHUB_USERNAME:   shivaram1918
   DOCKERHUB_GATEWAY:    shivaram1918/rbih-payment-gateway
   DOCKERHUB_PROCESSOR:  shivaram1918/rbih-payment-processor
   AWS_REGION:           ap-south-1
   EKS_CLUSTER:          rbih-payments
+  K8S_NAMESPACE:        payments
 
 jobs:
 
@@ -67,7 +74,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.vars.outputs.environment }}
-      namespace:   ${{ steps.vars.outputs.namespace }}
       image_tag:   ${{ steps.vars.outputs.image_tag }}
 
     steps:
@@ -76,7 +82,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve environment & auto-increment image tag
+      - name: Resolve environment & image tag
         id: vars
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -87,11 +93,6 @@ jobs:
             ENV="staging"
           else
             ENV="dev"
-          fi
-
-          if   [ "$ENV" = "production" ]; then NS="payments"
-          elif [ "$ENV" = "staging" ];    then NS="payments-staging"
-          else                                 NS="payments-dev"
           fi
 
           if [ -n "${{ github.event.inputs.image_tag }}" ]; then
@@ -108,13 +109,12 @@ jobs:
             fi
           fi
 
-          echo "environment=${ENV}"  >> $GITHUB_OUTPUT
-          echo "namespace=${NS}"     >> $GITHUB_OUTPUT
-          echo "image_tag=${TAG}"    >> $GITHUB_OUTPUT
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "image_tag=${TAG}"   >> $GITHUB_OUTPUT
 
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Environment : ${ENV}"
-          echo "  Namespace   : ${NS}"
+          echo "  Namespace   : payments"
           echo "  Image Tag   : ${TAG}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -126,8 +126,13 @@ jobs:
           TAG="${{ steps.vars.outputs.image_tag }}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          # Only push tag if it doesn't already exist
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          else
+            echo "Tag $TAG already exists, skipping."
+          fi
 
   # ─────────────────────────────────────────────────
   #  JOB 2: Build & Push
@@ -180,9 +185,9 @@ jobs:
 
       - name: Build summary
         run: |
-          echo "### 🐳 Docker Images Built & Pushed"   >> $GITHUB_STEP_SUMMARY
-          echo "| Service | Image |"                   >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-------|"                   >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 Docker Images Built & Pushed" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image |"                 >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|"                 >> $GITHUB_STEP_SUMMARY
           echo "| Gateway   | \`${{ env.DOCKERHUB_GATEWAY }}:${{ needs.setup.outputs.image_tag }}\` |"   >> $GITHUB_STEP_SUMMARY
           echo "| Processor | \`${{ env.DOCKERHUB_PROCESSOR }}:${{ needs.setup.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
 
@@ -232,6 +237,7 @@ jobs:
       - name: Trivy summary
         run: |
           echo "### 🔍 Trivy Scan Results — \`${{ needs.setup.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+<<<<<<< Updated upstream
           echo "**payment-gateway**"    >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
           cat trivy-gateway-report.txt  >> $GITHUB_STEP_SUMMARY
@@ -240,6 +246,16 @@ jobs:
           echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
           cat trivy-processor-report.txt >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
+=======
+          echo "**payment-gateway**"     >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                 >> $GITHUB_STEP_SUMMARY
+          cat trivy-gateway-report.txt   >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                 >> $GITHUB_STEP_SUMMARY
+          echo "**payment-processor**"   >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                 >> $GITHUB_STEP_SUMMARY
+          cat trivy-processor-report.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                 >> $GITHUB_STEP_SUMMARY
+>>>>>>> Stashed changes
 
   # ─────────────────────────────────────────────────
   #  JOB 4: Manual Approval Gate
@@ -257,10 +273,17 @@ jobs:
       - name: Approval granted
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+<<<<<<< Updated upstream
           echo "  ✅ DEPLOYMENT APPROVED BY: ${{ github.actor }}"
           echo "  Environment : ${{ needs.setup.outputs.environment }}"
           echo "  Image Tag   : ${{ needs.setup.outputs.image_tag }}"
           echo "  Namespace   : ${{ needs.setup.outputs.namespace }}"
+=======
+          echo "  ✅ APPROVED BY : ${{ github.actor }}"
+          echo "  Environment   : ${{ needs.setup.outputs.environment }}"
+          echo "  Namespace     : payments"
+          echo "  Image Tag     : ${{ needs.setup.outputs.image_tag }}"
+>>>>>>> Stashed changes
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   # ─────────────────────────────────────────────────
@@ -291,11 +314,6 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --name   ${{ env.EKS_CLUSTER }}
 
-      - name: Create namespace if not exists
-        run: |
-          kubectl create namespace ${{ needs.setup.outputs.namespace }} \
-            --dry-run=client -o yaml | kubectl apply -f -
-
       - name: Patch image tags in manifests
         run: |
           TAG="${{ needs.setup.outputs.image_tag }}"
@@ -303,7 +321,11 @@ jobs:
             k8s/base/payment-gateway.yaml
           sed -i "s|image: shivaram1918/rbih-payment-processor:.*|image: ${{ env.DOCKERHUB_PROCESSOR }}:${TAG}|g" \
             k8s/base/payment-processor.yaml
+<<<<<<< Updated upstream
           echo "Patched images to tag: ${TAG}"
+=======
+          echo "✅ Patched images to tag: ${TAG}"
+>>>>>>> Stashed changes
           grep "image:" k8s/base/payment-gateway.yaml k8s/base/payment-processor.yaml
 
       - name: Apply namespace
@@ -317,28 +339,48 @@ jobs:
 
       - name: Apply payment services
         run: |
+<<<<<<< Updated upstream
           NS="${{ needs.setup.outputs.namespace }}"
           kubectl apply -f k8s/base/payment-processor.yaml -n ${NS}
           kubectl apply -f k8s/base/payment-gateway.yaml   -n ${NS}
           kubectl apply -f k8s/base/reliability.yaml       -n ${NS}
           kubectl apply -f k8s/base/nodeport.yaml          -n ${NS}
+=======
+          kubectl apply -f k8s/base/payment-processor.yaml
+          kubectl apply -f k8s/base/payment-gateway.yaml
+          kubectl apply -f k8s/base/reliability.yaml
+          kubectl apply -f k8s/base/nodeport.yaml
+>>>>>>> Stashed changes
 
       - name: Wait for rollout
         run: |
-          NS="${{ needs.setup.outputs.namespace }}"
-          kubectl rollout status deployment/payment-processor -n ${NS} --timeout=180s
-          kubectl rollout status deployment/payment-gateway   -n ${NS} --timeout=180s
+          kubectl rollout status deployment/payment-processor \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=180s
+          kubectl rollout status deployment/payment-gateway \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=180s
 
-      - name: Verify pods
+      - name: Verify pods and services
         run: |
+<<<<<<< Updated upstream
           NS="${{ needs.setup.outputs.namespace }}"
           kubectl get pods -n ${NS}
           kubectl get svc  -n ${NS}
+=======
+          echo "━━━━━ Pods ━━━━━"
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+          echo ""
+          echo "━━━━━ Services ━━━━━"
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+>>>>>>> Stashed changes
 
       - name: Print access URLs
         run: |
           NODE_IP=$(kubectl get nodes \
             -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
+<<<<<<< Updated upstream
+=======
+          echo ""
+>>>>>>> Stashed changes
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  🌐 App URL    : http://${NODE_IP}:30080"
           echo "  ❤  Health    : http://${NODE_IP}:30080/healthz"
@@ -346,20 +388,30 @@ jobs:
           echo "  📈 Grafana   : http://${NODE_IP}:32710"
           echo "  🔥 Prometheus: http://${NODE_IP}:30091"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+<<<<<<< Updated upstream
           echo "| 🌐 App | http://${NODE_IP}:30080 |"    >> $GITHUB_STEP_SUMMARY
+=======
+          echo "| 🌐 App    | http://${NODE_IP}:30080 |" >> $GITHUB_STEP_SUMMARY
+>>>>>>> Stashed changes
           echo "| 📈 Grafana | http://${NODE_IP}:32710 |" >> $GITHUB_STEP_SUMMARY
 
       - name: Annotate deployments
         run: |
-          NS="${{ needs.setup.outputs.namespace }}"
           ANNOTATION="tag=${{ needs.setup.outputs.image_tag }} actor=${{ github.actor }} sha=${{ github.sha }}"
+<<<<<<< Updated upstream
           kubectl annotate deployment/payment-gateway   -n ${NS} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
           kubectl annotate deployment/payment-processor -n ${NS} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
+=======
+          kubectl annotate deployment/payment-gateway \
+            -n ${{ env.K8S_NAMESPACE }} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
+          kubectl annotate deployment/payment-processor \
+            -n ${{ env.K8S_NAMESPACE }} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
+>>>>>>> Stashed changes
 
       - name: Upload applied manifests
         uses: actions/upload-artifact@v4
         with:
-          name: k8s-manifests-applied-${{ needs.setup.outputs.image_tag }}
+          name: k8s-manifests-${{ needs.setup.outputs.image_tag }}
           path: |
             k8s/base/payment-gateway.yaml
             k8s/base/payment-processor.yaml
@@ -370,18 +422,30 @@ jobs:
 
       - name: Deployment summary
         run: |
+<<<<<<< Updated upstream
           NS="${{ needs.setup.outputs.namespace }}"
+=======
+>>>>>>> Stashed changes
           echo "### 🚀 RBIH Payments Deployed to EKS"                               >> $GITHUB_STEP_SUMMARY
           echo "| Key | Value |"                                                     >> $GITHUB_STEP_SUMMARY
           echo "|-----|-------|"                                                     >> $GITHUB_STEP_SUMMARY
           echo "| 🌍 Environment | \`${{ needs.setup.outputs.environment }}\` |"    >> $GITHUB_STEP_SUMMARY
           echo "| 🐳 Image Tag   | \`${{ needs.setup.outputs.image_tag }}\` |"      >> $GITHUB_STEP_SUMMARY
+<<<<<<< Updated upstream
           echo "| 📦 Namespace   | \`${NS}\` |"                                     >> $GITHUB_STEP_SUMMARY
+=======
+          echo "| 📦 Namespace   | \`payments\` |"                                  >> $GITHUB_STEP_SUMMARY
+>>>>>>> Stashed changes
           echo "| ⎈  EKS Cluster | \`${{ env.EKS_CLUSTER }}\` |"                   >> $GITHUB_STEP_SUMMARY
           echo "| 🌿 Branch      | \`${{ github.ref_name }}\` |"                    >> $GITHUB_STEP_SUMMARY
           echo "| 👤 Deployed by | \`${{ github.actor }}\` |"                       >> $GITHUB_STEP_SUMMARY
           echo ""                                                                    >> $GITHUB_STEP_SUMMARY
           echo "**Pod status:**"                                                     >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`"                                                              >> $GITHUB_STEP_SUMMARY
+<<<<<<< Updated upstream
           kubectl get pods -n ${NS}                                                  >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" 
+=======
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}                              >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                                                              >> $GITHUB_STEP_SUMMARY
+>>>>>>> Stashed changes
