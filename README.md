@@ -1,4 +1,4 @@
-# RBIH Payments — DevOps Take-Home Challenge
+# RBIH Payments — DevOps Task
 
 > **Two Go microservices** (`payment-gateway` + `payment-processor`) deployed on **AWS EKS** with production-grade CI/CD, security hardening, observability, and reliability.
 
@@ -616,7 +616,7 @@ aws sts get-caller-identity
 
 ## Design Decisions
 
-**Why Go?** Fast startup, tiny binaries ideal for scratch images, excellent standard library for HTTP, very low memory overhead — all important for financial services.
+**Why Python?Python was chosen for its simplicity and rapid development capabilities. It allows quick implementation of APIs with clean and readable code
 
 **Why kind for local dev?** Creates a realistic multi-node topology (unlike minikube single-node), making `TopologySpreadConstraints` meaningful and CI-friendly.
 
@@ -644,4 +644,4 @@ aws sts get-caller-identity
 
 ## Author
 
-Ramesh | RBIH DevOps Take-Home Challenge
+Ramesh | RBIH DevOps | Successfully Completed 😊
