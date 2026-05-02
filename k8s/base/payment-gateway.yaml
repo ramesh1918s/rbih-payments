@@ -5,7 +5,6 @@ metadata:
   namespace: payments
   labels:
     app: payment-gateway
-    app.kubernetes.io/part-of: rbih-payments
     version: "1.0.0"
 spec:
   replicas: 2
@@ -28,7 +27,6 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: payment-gateway
-      automountServiceAccountToken: false # FIX: was missing — SA token unnecessary
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -36,13 +34,6 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: payment-gateway
       containers:
         - name: payment-gateway
           image: shivaram1918/rbih-payment-gateway:1.0.0
@@ -54,8 +45,7 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            # FIX: was PROCESSOR_URL — the app reads PAYMENT_PROCESSOR_URL per the challenge spec
-            - name: PAYMENT_PROCESSOR_URL
+            - name: PROCESSOR_URL
               value: "http://payment-processor.payments.svc.cluster.local:8080"
             - name: REQUEST_TIMEOUT_SECONDS
               value: "10"
@@ -66,10 +56,9 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
-          # FIX: probe path was /healthz — challenge images expose /health
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
@@ -77,18 +66,12 @@ spec:
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: http
-            initialDelaySeconds: 5 # FIX: was 10 — unnecessarily slow for readiness
+            initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 5
-          startupProbe: # FIX: was missing — prevents liveness killing slow-start pods
-            httpGet:
-              path: /health
-              port: http
-            failureThreshold: 10
-            periodSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -100,14 +83,19 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: payment-gateway
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: payment-gateway
   namespace: payments
-  labels:
-    app: payment-gateway
 ---
 apiVersion: v1
 kind: Service
