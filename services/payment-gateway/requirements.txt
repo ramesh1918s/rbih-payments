@@ -3,3 +3,5 @@ gunicorn==22.0.0
 prometheus-client==0.20.0
 requests==2.32.3
 urllib3==2.2.2
+# Add to requirements.txt:
+flask-cors==4.0.1

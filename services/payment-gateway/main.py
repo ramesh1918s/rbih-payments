@@ -4,6 +4,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 logging.basicConfig(
@@ -12,6 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 app = Flask(__name__)
+CORS(app)
 
 PROCESSOR_URL = os.getenv("PROCESSOR_URL", "http://payment-processor:8080")
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT_SECONDS", 10))
