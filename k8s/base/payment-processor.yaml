@@ -64,7 +64,7 @@ spec:
           # FIX: probe path was /healthz — challenge images expose /health
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
@@ -72,7 +72,7 @@ spec:
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: http
             initialDelaySeconds: 5 # FIX: was 10
             periodSeconds: 5
@@ -80,7 +80,7 @@ spec:
             timeoutSeconds: 5
           startupProbe: # FIX: was missing
             httpGet:
-              path: /health
+              path: /healthz
               port: http
             failureThreshold: 10
             periodSeconds: 3
