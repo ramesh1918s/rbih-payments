@@ -72,6 +72,15 @@ spec:
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 5
+<<<<<<< HEAD
+=======
+          startupProbe: # FIX: was missing — prevents liveness killing slow-start pods
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 10
+            periodSeconds: 3
+>>>>>>> e1dd83b3ea47a2e978b66716d2e1262561144e16
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
