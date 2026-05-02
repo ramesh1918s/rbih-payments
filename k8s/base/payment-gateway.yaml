@@ -56,6 +56,15 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+
+          # ✅ Probes (Production Ready)
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 10
+            periodSeconds: 3
+
           livenessProbe:
             httpGet:
               path: /healthz
@@ -64,6 +73,7 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
             timeoutSeconds: 5
+
           readinessProbe:
             httpGet:
               path: /healthz
@@ -72,26 +82,21 @@ spec:
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 5
-<<<<<<< HEAD
-=======
-          startupProbe: # FIX: was missing — prevents liveness killing slow-start pods
-            httpGet:
-              path: /healthz
-              port: http
-            failureThreshold: 10
-            periodSeconds: 3
->>>>>>> e1dd83b3ea47a2e978b66716d2e1262561144e16
+
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+
       volumes:
         - name: tmp
           emptyDir: {}
+
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -99,12 +104,14 @@ spec:
           labelSelector:
             matchLabels:
               app: payment-gateway
+
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: payment-gateway
   namespace: payments
+
 ---
 apiVersion: v1
 kind: Service

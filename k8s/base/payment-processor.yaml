@@ -34,17 +34,21 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30
+
       containers:
         - name: payment-processor
-          image: shivaram1918/rbih-payment-processor:1.0.0
+          image: shivaram1918/rbih-payment-processor:1.0.5   # ✅ updated
           imagePullPolicy: Always
+
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
+
           env:
             - name: PORT
               value: "8080"
+
           resources:
             requests:
               cpu: "100m"
@@ -52,39 +56,47 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+
+          # ✅ FIXED PROBES (CRITICAL)
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
             timeoutSeconds: 5
+
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 5
-          startupProbe: # FIX: was missing
-            httpGet:
-              path: /healthz
-              port: http
-            failureThreshold: 10
-            periodSeconds: 3
+
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+
       volumes:
         - name: tmp
           emptyDir: {}
+
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -92,12 +104,14 @@ spec:
           labelSelector:
             matchLabels:
               app: payment-processor
+
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: payment-processor
   namespace: payments
+
 ---
 apiVersion: v1
 kind: Service
