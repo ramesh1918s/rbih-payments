@@ -330,11 +330,11 @@ jobs:
           echo "⏳ Waiting for payment-processor rollout..."
           kubectl rollout status deployment/payment-processor \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-          
+
           echo "⏳ Waiting for payment-gateway rollout..."
           kubectl rollout status deployment/payment-gateway \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-          
+
           echo "✅ All deployments rolled out successfully"
 
       - name: Debug pod status if rollout fails
@@ -372,14 +372,27 @@ jobs:
             -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "  🌐 App URL    : http://${EC2_Instance_IP:8888"
+          echo "  🌐 App URL    : http://${NODE_IP}:30080"
+          echo "  🖥  Workstation: http://${NODE_IP}:8888  (port-forward)"
           echo "  ❤  Health    : http://${NODE_IP}:30080/healthz"
           echo "  📊 Metrics   : http://${NODE_IP}:30080/metrics"
           echo "  📈 Grafana   : http://${NODE_IP}:32710"
           echo "  🔥 Prometheus: http://${NODE_IP}:30091"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "| 🌐 App    | http://${EC2_Instance_IP:8888 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📈 Grafana | http://${NODE_IP}:32710 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 App       | http://${NODE_IP}:30080 |"     >> $GITHUB_STEP_SUMMARY
+          echo "| 🖥  Port 8888 | http://${NODE_IP}:8888  |"    >> $GITHUB_STEP_SUMMARY
+          echo "| 📈 Grafana   | http://${NODE_IP}:32710 |"     >> $GITHUB_STEP_SUMMARY
+          echo "| 🔥 Prometheus| http://${NODE_IP}:30091 |"     >> $GITHUB_STEP_SUMMARY
+
+      - name: Start port-forward for workstation access on :8888
+        run: |
+          echo "🔌 Starting port-forward: 0.0.0.0:8888 → payment-gateway:8080"
+          nohup kubectl port-forward svc/payment-gateway 8888:8080 \
+            -n ${{ env.K8S_NAMESPACE }} --address 0.0.0.0 \
+            > /tmp/portforward-8888.log 2>&1 &
+          sleep 3
+          echo "✅ Port-forward PID: $(cat /tmp/portforward-8888.log | head -1 || echo 'started')"
+          echo "   Access: http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}'):8888"
 
       - name: Annotate deployments (audit trail)
         run: |
@@ -416,4 +429,4 @@ jobs:
           echo "**Pod status:**"                                                     >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`"                                                              >> $GITHUB_STEP_SUMMARY
           kubectl get pods -n ${{ env.K8S_NAMESPACE }}                              >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" 
+          echo "\`\`\`"                                                              >> $GITHUB_STEP_SUMMARY
