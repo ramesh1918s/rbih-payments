@@ -35,7 +35,7 @@ on:
         default: ""
 
       skip_scan:
-        description: "⚡ Skip security & quality scans?"
+        description: "⚡ Skip Trivy security scan?"
         required: false
         type: boolean
         default: false
@@ -60,7 +60,7 @@ env:
 jobs:
 
   # ─────────────────────────────────────────────────
-  #  JOB 1: Setup — resolve env, namespace, image tag
+  #  JOB 1: Setup
   # ─────────────────────────────────────────────────
   setup:
     name: 🔧 Setup Environment
@@ -130,7 +130,7 @@ jobs:
           git push origin "$TAG"
 
   # ─────────────────────────────────────────────────
-  #  JOB 2: Build & Push — Gateway + Processor
+  #  JOB 2: Build & Push
   # ─────────────────────────────────────────────────
   build:
     name: 🐳 Build & Push — ${{ needs.setup.outputs.environment }}
@@ -152,7 +152,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # FIX: context path is services/payment-gateway (not ./payment-gateway)
       - name: Build & Push — payment-gateway
         uses: docker/build-push-action@v5
         with:
@@ -188,69 +187,7 @@ jobs:
           echo "| Processor | \`${{ env.DOCKERHUB_PROCESSOR }}:${{ needs.setup.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────
-  #  JOB 3: SonarQube — Code Quality & SAST
-  # ─────────────────────────────────────────────────
-  # sonarqube:
-  #   name: 🔎 SonarQube Scan
-  #   runs-on: ubuntu-latest
-  #   needs: [setup, build]
-  #   if: ${{ github.event.inputs.skip_scan != 'true' }}
-
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-
-  #     - name: Set up Python (services are Python/FastAPI)
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.11"
-
-  #     - name: Install dependencies & run tests — gateway
-  #       working-directory: ./services/payment-gateway
-  #       run: |
-  #         pip install -r requirements.txt 2>/dev/null || true
-  #         pip install pytest pytest-cov 2>/dev/null || true
-  #         python -m pytest --cov=. --cov-report=xml:coverage.xml -q 2>/dev/null || true
-
-  #     - name: Install dependencies & run tests — processor
-  #       working-directory: ./services/payment-processor
-  #       run: |
-  #         pip install -r requirements.txt 2>/dev/null || true
-  #         pip install pytest pytest-cov 2>/dev/null || true
-  #         python -m pytest --cov=. --cov-report=xml:coverage.xml -q 2>/dev/null || true
-
-  #     - name: SonarQube Scan — payment-gateway
-  #       uses: SonarSource/sonarqube-scan-action@v5
-  #       env:
-  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  #       with:
-  #         projectBaseDir: ./services/payment-gateway
-  #         args: >
-  #           -Dsonar.projectKey=rbih-payment-gateway
-  #           -Dsonar.projectName="RBIH Payment Gateway"
-  #           -Dsonar.projectVersion=${{ needs.setup.outputs.image_tag }}
-  #           -Dsonar.python.coverage.reportPaths=coverage.xml
-  #           -Dsonar.qualitygate.wait=true
-
-  #     - name: SonarQube Scan — payment-processor
-  #       uses: SonarSource/sonarqube-scan-action@v5
-  #       env:
-  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  #       with:
-  #         projectBaseDir: ./services/payment-processor
-  #         args: >
-  #           -Dsonar.projectKey=rbih-payment-processor
-  #           -Dsonar.projectName="RBIH Payment Processor"
-  #           -Dsonar.projectVersion=${{ needs.setup.outputs.image_tag }}
-  #           -Dsonar.python.coverage.reportPaths=coverage.xml
-  #           -Dsonar.qualitygate.wait=true
-
-  # ─────────────────────────────────────────────────
-  #  JOB 4: Trivy — Container Vulnerability Scan
+  #  JOB 3: Trivy Scan
   # ─────────────────────────────────────────────────
   trivy-scan:
     name: 🔍 Trivy Vulnerability Scan
@@ -283,7 +220,7 @@ jobs:
           severity:  CRITICAL,HIGH
           output:    trivy-processor-report.txt
 
-      - name: Upload Trivy reports as artifacts
+      - name: Upload Trivy reports
         uses: actions/upload-artifact@v4
         with:
           name: trivy-scan-reports-${{ needs.setup.outputs.image_tag }}
@@ -295,22 +232,22 @@ jobs:
       - name: Trivy summary
         run: |
           echo "### 🔍 Trivy Scan Results — \`${{ needs.setup.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**payment-gateway**"                                                  >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                                               >> $GITHUB_STEP_SUMMARY
-          cat trivy-gateway-report.txt                                                >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                                               >> $GITHUB_STEP_SUMMARY
-          echo "**payment-processor**"                                                >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                                               >> $GITHUB_STEP_SUMMARY
-          cat trivy-processor-report.txt                                              >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                                               >> $GITHUB_STEP_SUMMARY
+          echo "**payment-gateway**"    >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
+          cat trivy-gateway-report.txt  >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
+          echo "**payment-processor**"  >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
+          cat trivy-processor-report.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────
-  #  JOB 5: Manual Approval Gate 🔐
+  #  JOB 4: Manual Approval Gate
   # ─────────────────────────────────────────────────
   approval:
     name: ✅ Approval Gate — ${{ needs.setup.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: [setup, build, sonarqube, trivy-scan]
+    needs: [setup, build, trivy-scan]
     if: always() && needs.build.result == 'success'
 
     environment:
@@ -321,14 +258,13 @@ jobs:
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  ✅ DEPLOYMENT APPROVED BY: ${{ github.actor }}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  Environment : ${{ needs.setup.outputs.environment }}"
           echo "  Image Tag   : ${{ needs.setup.outputs.image_tag }}"
           echo "  Namespace   : ${{ needs.setup.outputs.namespace }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   # ─────────────────────────────────────────────────
-  #  JOB 6: Deploy to EKS via kubectl
+  #  JOB 5: Deploy to EKS
   # ─────────────────────────────────────────────────
   deploy:
     name: 🚀 Deploy to EKS — ${{ needs.setup.outputs.environment }}
@@ -363,13 +299,10 @@ jobs:
       - name: Patch image tags in manifests
         run: |
           TAG="${{ needs.setup.outputs.image_tag }}"
-
           sed -i "s|image: shivaram1918/rbih-payment-gateway:.*|image: ${{ env.DOCKERHUB_GATEWAY }}:${TAG}|g" \
             k8s/base/payment-gateway.yaml
-
           sed -i "s|image: shivaram1918/rbih-payment-processor:.*|image: ${{ env.DOCKERHUB_PROCESSOR }}:${TAG}|g" \
             k8s/base/payment-processor.yaml
-
           echo "Patched images to tag: ${TAG}"
           grep "image:" k8s/base/payment-gateway.yaml k8s/base/payment-processor.yaml
 
@@ -388,7 +321,6 @@ jobs:
           kubectl apply -f k8s/base/payment-processor.yaml -n ${NS}
           kubectl apply -f k8s/base/payment-gateway.yaml   -n ${NS}
           kubectl apply -f k8s/base/reliability.yaml       -n ${NS}
-          # NodePort instead of LoadBalancer — free tier safe (no NLB cost)
           kubectl apply -f k8s/base/nodeport.yaml          -n ${NS}
 
       - name: Wait for rollout
@@ -400,33 +332,31 @@ jobs:
       - name: Verify pods
         run: |
           NS="${{ needs.setup.outputs.namespace }}"
-          echo "━━━━━ Pods ━━━━━"
           kubectl get pods -n ${NS}
-          echo ""
-          echo "━━━━━ Services ━━━━━"
           kubectl get svc  -n ${NS}
 
-      - name: Print access URL
+      - name: Print access URLs
         run: |
-          NS="${{ needs.setup.outputs.namespace }}"
-          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
-          echo ""
+          NODE_IP=$(kubectl get nodes \
+            -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "  🌐 App URL  : http://${NODE_IP}:30080"
-          echo "  ❤  Health  : http://${NODE_IP}:30080/health"
-          echo "  📊 Metrics  : http://${NODE_IP}:30080/metrics"
-          echo "  ⚠  Ensure port 30080 is open in EC2 Security Group!"
+          echo "  🌐 App URL    : http://${NODE_IP}:30080"
+          echo "  ❤  Health    : http://${NODE_IP}:30080/healthz"
+          echo "  📊 Metrics   : http://${NODE_IP}:30080/metrics"
+          echo "  📈 Grafana   : http://${NODE_IP}:32710"
+          echo "  🔥 Prometheus: http://${NODE_IP}:30091"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "| 🌐 App URL | http://${NODE_IP}:30080 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 App | http://${NODE_IP}:30080 |"    >> $GITHUB_STEP_SUMMARY
+          echo "| 📈 Grafana | http://${NODE_IP}:32710 |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Annotate deployments (audit trail)
+      - name: Annotate deployments
         run: |
           NS="${{ needs.setup.outputs.namespace }}"
           ANNOTATION="tag=${{ needs.setup.outputs.image_tag }} actor=${{ github.actor }} sha=${{ github.sha }}"
-          kubectl annotate deployment/payment-gateway  -n ${NS} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
+          kubectl annotate deployment/payment-gateway   -n ${NS} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
           kubectl annotate deployment/payment-processor -n ${NS} kubernetes.io/change-cause="${ANNOTATION}" --overwrite
 
-      - name: Upload applied manifests as artifact
+      - name: Upload applied manifests
         uses: actions/upload-artifact@v4
         with:
           name: k8s-manifests-applied-${{ needs.setup.outputs.image_tag }}
@@ -441,17 +371,17 @@ jobs:
       - name: Deployment summary
         run: |
           NS="${{ needs.setup.outputs.namespace }}"
-          echo "### 🚀 RBIH Payments Deployed to EKS"            >> $GITHUB_STEP_SUMMARY
-          echo "| Key | Value |"                                  >> $GITHUB_STEP_SUMMARY
-          echo "|-----|-------|"                                  >> $GITHUB_STEP_SUMMARY
-          echo "| 🌍 Environment | \`${{ needs.setup.outputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🐳 Image Tag   | \`${{ needs.setup.outputs.image_tag }}\` |"   >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 Namespace   | \`${NS}\` |"                                  >> $GITHUB_STEP_SUMMARY
-          echo "| ⎈  EKS Cluster | \`${{ env.EKS_CLUSTER }}\` |"                >> $GITHUB_STEP_SUMMARY
-          echo "| 🌿 Branch      | \`${{ github.ref_name }}\` |"                 >> $GITHUB_STEP_SUMMARY
-          echo "| 👤 Deployed by | \`${{ github.actor }}\` |"                    >> $GITHUB_STEP_SUMMARY
-          echo ""                                                 >> $GITHUB_STEP_SUMMARY
-          echo "**Pod status:**"                                  >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                          >> $GITHUB_STEP_SUMMARY
-          kubectl get pods -n ${NS}                              >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`"                                          >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 RBIH Payments Deployed to EKS"                               >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |"                                                     >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|"                                                     >> $GITHUB_STEP_SUMMARY
+          echo "| 🌍 Environment | \`${{ needs.setup.outputs.environment }}\` |"    >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Image Tag   | \`${{ needs.setup.outputs.image_tag }}\` |"      >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Namespace   | \`${NS}\` |"                                     >> $GITHUB_STEP_SUMMARY
+          echo "| ⎈  EKS Cluster | \`${{ env.EKS_CLUSTER }}\` |"                   >> $GITHUB_STEP_SUMMARY
+          echo "| 🌿 Branch      | \`${{ github.ref_name }}\` |"                    >> $GITHUB_STEP_SUMMARY
+          echo "| 👤 Deployed by | \`${{ github.actor }}\` |"                       >> $GITHUB_STEP_SUMMARY
+          echo ""                                                                    >> $GITHUB_STEP_SUMMARY
+          echo "**Pod status:**"                                                     >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"                                                              >> $GITHUB_STEP_SUMMARY
+          kubectl get pods -n ${NS}                                                  >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" 
