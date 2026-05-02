@@ -5,6 +5,7 @@ metadata:
   namespace: payments
   labels:
     app: payment-processor
+    app.kubernetes.io/part-of: rbih-payments
     version: "1.0.0"
 spec:
   replicas: 2
@@ -27,6 +28,7 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: payment-processor
+      automountServiceAccountToken: false # FIX: was missing
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -34,6 +36,13 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: payment-processor
       containers:
         - name: payment-processor
           image: shivaram1918/rbih-payment-processor:1.0.0
@@ -52,9 +61,10 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+          # FIX: probe path was /healthz — challenge images expose /health
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
@@ -62,12 +72,18 @@ spec:
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5 # FIX: was 10
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 5
+          startupProbe: # FIX: was missing
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 10
+            periodSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -79,19 +95,14 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: payment-processor
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: payment-processor
   namespace: payments
+  labels:
+    app: payment-processor
 ---
 apiVersion: v1
 kind: Service
@@ -108,4 +119,4 @@ spec:
       port: 8080
       targetPort: http
       protocol: TCP
-  type: ClusterIP
+  type: ClusterIP # processor is NEVER exposed externally — only gateway talks to it

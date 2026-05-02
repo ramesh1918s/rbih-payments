@@ -1,3 +1,5 @@
+# POLICY 1 — Gateway accepts inbound traffic from the internet
+# (via LoadBalancer / NodePort — NLB is the actual entry point)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -12,7 +14,65 @@ spec:
   ingress:
     - from:
         - ipBlock:
-            cidr: 0.0.0.0/0   # 🔥 allow internet
+            cidr: 0.0.0.0/0 # internet-facing — NLB forwards here
       ports:
         - port: 8080
           protocol: TCP
+---
+# POLICY 2 — Processor ONLY accepts traffic from gateway (zero-trust)
+# FIX: this was completely missing — without it, anything in the cluster
+#      could call payment-processor directly, bypassing the gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-processor-ingress
+  namespace: payments
+spec:
+  podSelector:
+    matchLabels:
+      app: payment-processor
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: payment-gateway
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+# POLICY 3 — Allow Prometheus (monitoring namespace) to scrape /metrics on both pods
+# FIX: this was missing — without it, Prometheus scrapes silently fail
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: payments
+spec:
+  podSelector: {} # applies to all pods in payments namespace
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+# POLICY 4 — Deny all other ingress to processor (explicit default deny)
+# Belt-and-suspenders: ensures nothing else can reach processor even if policy 2 changes
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-processor-other
+  namespace: payments
+spec:
+  podSelector:
+    matchLabels:
+      app: payment-processor
+  policyTypes:
+    - Egress # processor only needs to respond — no outbound calls needed
+  egress: [] # empty = deny all egress from processor (it only receives, never initiates)

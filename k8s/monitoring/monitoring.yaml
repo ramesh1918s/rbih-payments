@@ -36,6 +36,11 @@ data:
             action: replace
             target_label: __metrics_path__
             regex: (.+)
+          # FIX: preserve pod name and namespace as labels for alerting
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
 
       - job_name: 'payment-processor'
         kubernetes_sd_configs:
@@ -46,6 +51,14 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: payment-processor
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -57,26 +70,48 @@ data:
     groups:
       - name: payment-service-alerts
         rules:
+
+          # FIX: original used http_requests_total{status="Internal Server Error"} — that label
+          # value is the full HTTP phrase, not a status code. Actual metric from the Go app is
+          # gateway_requests_total{status="upstream_error|bad_request|processor_error"}.
+          # Using a broad regex that covers any non-success label value.
           - alert: HighErrorRate
             expr: |
-              rate(http_requests_total{status="Internal Server Error"}[5m]) /
-              rate(http_requests_total[5m]) > 0.05
+              sum(rate(gateway_requests_total{status!="success"}[5m]))
+              /
+              sum(rate(gateway_requests_total[5m])) > 0.05
             for: 2m
             labels:
               severity: critical
             annotations:
-              summary: "High error rate on {{ $labels.handler }}"
-              description: "Error rate is {{ $value | humanizePercentage }}"
+              summary: "High error rate on payment-gateway"
+              description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
 
+          # FIX: metric name updated to match Go app — gateway_request_duration_seconds
           - alert: HighLatency
             expr: |
-              histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 2
+              histogram_quantile(0.99,
+                rate(gateway_request_duration_seconds_bucket[5m])
+              ) > 2
             for: 5m
             labels:
               severity: warning
             annotations:
-              summary: "P99 latency above 2s"
-              description: "P99 latency is {{ $value }}s on {{ $labels.handler }}"
+              summary: "P99 latency above 2s on payment-gateway"
+              description: "P99 latency is {{ $value }}s"
+
+          # FIX: metric name updated to match Go app — processor_payments_total
+          - alert: ProcessorHighErrorRate
+            expr: |
+              sum(rate(processor_payments_total{status!="success"}[5m]))
+              /
+              sum(rate(processor_payments_total[5m])) > 0.05
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High error rate on payment-processor"
+              description: "Processor error rate is {{ $value | humanizePercentage }}"
 
           - alert: ProcessorDown
             expr: up{job="payment-processor"} == 0
@@ -85,6 +120,16 @@ data:
               severity: critical
             annotations:
               summary: "payment-processor is unreachable"
+              description: "Prometheus cannot scrape payment-processor — pod may be down"
+
+          - alert: GatewayDown
+            expr: up{job="payment-gateway"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "payment-gateway is unreachable"
+              description: "Prometheus cannot scrape payment-gateway — pod may be down"
 
           - alert: PodNotReady
             expr: kube_pod_status_ready{namespace="payments",condition="true"} == 0
@@ -92,7 +137,7 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "Pod {{ $labels.pod }} is not ready"
+              summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} not ready"
 ---
 # ─────────────────────────────────────────
 # PROMETHEUS RBAC
@@ -170,6 +215,19 @@ spec:
             limits:
               cpu: "500m"
               memory: "1Gi"
+          # FIX: was missing liveness/readiness probes on Prometheus itself
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
         - name: config
           configMap:
@@ -178,7 +236,7 @@ spec:
           configMap:
             name: prometheus-rules
         - name: storage
-          emptyDir: {}
+          emptyDir: {} # NOTE: data lost on pod restart — use PVC in production
 ---
 apiVersion: v1
 kind: Service
@@ -191,6 +249,7 @@ spec:
   ports:
     - port: 9090
       targetPort: 9090
+  type: ClusterIP # FIX: was missing type — defaulted to ClusterIP but better to be explicit
 ---
 # ─────────────────────────────────────────
 # GRAFANA — Datasource auto-provision
@@ -212,7 +271,7 @@ data:
         editable: false
 ---
 # ─────────────────────────────────────────
-# GRAFANA — Payments dashboard auto-provision
+# GRAFANA — Dashboard provider
 # ─────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
@@ -232,6 +291,10 @@ data:
         options:
           path: /var/lib/grafana/dashboards
 ---
+# ─────────────────────────────────────────
+# GRAFANA — Payments dashboard
+# FIX: metric names updated to match actual Go app metric names
+# ─────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -249,40 +312,35 @@ data:
       "panels": [
         {
           "id": 1,
-          "title": "Request Rate (req/s)",
+          "title": "Gateway Request Rate (req/s)",
           "type": "timeseries",
           "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "sum(rate(http_requests_total[1m])) by (job)",
-              "legendFormat": "{{ job }}"
+              "expr": "sum(rate(gateway_requests_total[1m])) by (status)",
+              "legendFormat": "{{ status }}"
             }
           ],
           "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "palette-classic" },
-              "unit": "reqps"
-            }
+            "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" }
           }
         },
         {
           "id": 2,
-          "title": "P99 Latency (s)",
+          "title": "Gateway P99 Latency (s)",
           "type": "timeseries",
           "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))",
-              "legendFormat": "p99 {{ job }}"
+              "expr": "histogram_quantile(0.99, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+              "legendFormat": "p99 {{ endpoint }}"
             },
             {
-              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))",
-              "legendFormat": "p50 {{ job }}"
+              "expr": "histogram_quantile(0.50, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+              "legendFormat": "p50 {{ endpoint }}"
             }
           ],
-          "fieldConfig": {
-            "defaults": { "unit": "s" }
-          }
+          "fieldConfig": { "defaults": { "unit": "s" } }
         },
         {
           "id": 3,
@@ -291,8 +349,12 @@ data:
           "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (job) / sum(rate(http_requests_total[5m])) by (job)",
-              "legendFormat": "errors {{ job }}"
+              "expr": "100 * sum(rate(gateway_requests_total{status!=\"success\"}[5m])) / sum(rate(gateway_requests_total[5m]))",
+              "legendFormat": "gateway error %"
+            },
+            {
+              "expr": "100 * sum(rate(processor_payments_total{status!=\"success\"}[5m])) / sum(rate(processor_payments_total[5m]))",
+              "legendFormat": "processor error %"
             }
           ],
           "fieldConfig": {
@@ -329,30 +391,49 @@ data:
                   { "color": "yellow", "value": 2 },
                   { "color": "green", "value": 4 }
                 ]
-              },
-              "mappings": []
+              }
             }
           },
-          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" }
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
         },
         {
           "id": 5,
-          "title": "Total Requests (session)",
+          "title": "Total Amount Processed",
           "type": "stat",
           "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
           "targets": [
             {
-              "expr": "sum(http_requests_total) by (job)",
-              "legendFormat": "{{ job }}"
+              "expr": "processor_amount_total",
+              "legendFormat": "Total Amount"
             }
           ],
           "fieldConfig": {
-            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+            "defaults": { "unit": "currencyINR", "color": { "mode": "palette-classic" } }
           },
-          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "value" }
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "value"
+          }
         }
       ]
     }
+---
+# ─────────────────────────────────────────
+# GRAFANA SECRET
+# WARNING: hardcoded password is fine for local/dev.
+# In production use external-secrets or AWS Secrets Manager.
+# ─────────────────────────────────────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secret
+  namespace: monitoring
+type: Opaque
+stringData:
+  admin-password: "rbih@admin2026"
 ---
 # ─────────────────────────────────────────
 # GRAFANA DEPLOYMENT
@@ -372,6 +453,11 @@ spec:
       labels:
         app: grafana
     spec:
+      # FIX: was missing securityContext — grafana should not run as root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472 # grafana's official UID
+        fsGroup: 472
       containers:
         - name: grafana
           image: grafana/grafana:10.3.0
@@ -403,6 +489,19 @@ spec:
             limits:
               cpu: "300m"
               memory: "256Mi"
+          # FIX: was missing probes on Grafana
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
         - name: datasources
           configMap:
@@ -413,15 +512,6 @@ spec:
         - name: dashboard-payments
           configMap:
             name: grafana-dashboard-payments
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana-secret
-  namespace: monitoring
-type: Opaque
-stringData:
-  admin-password: "rbih@admin2026"
 ---
 apiVersion: v1
 kind: Service

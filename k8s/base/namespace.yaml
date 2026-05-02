@@ -4,3 +4,4 @@ metadata:
   name: payments
   labels:
     name: payments
+    kubernetes.io/metadata.name: payments # required by NetworkPolicy namespaceSelector
