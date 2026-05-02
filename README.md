@@ -264,6 +264,7 @@ monitoring   grafana-xxxxx-xxxxx                  1/1     Running   0
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
+ APP Acess  Workstation_EC2_Instance | Pub_IP:8888
 | 🌐 Payment Gateway | http://43.205.91.169:30080 | — |
 | ❤️ Health Check | http://43.205.91.169:30080/healthz | — |
 | 📊 Metrics | http://43.205.91.169:30080/metrics | — |
