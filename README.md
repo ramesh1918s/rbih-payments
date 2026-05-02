@@ -60,12 +60,12 @@
 rbih-payments/
 ├── services/
 │   ├── payment-gateway/
-│   │   ├── main.go             # HTTP gateway — forwards POST /pay → processor
-│   │   ├── go.mod
+│   │   ├── main.py          # HTTP gateway — forwards POST /pay → processor
+│   │   ├── requirements.txt
 │   │   └── Dockerfile          # Multi-stage, scratch image, non-root UID 65534
 │   └── payment-processor/
-│       ├── main.go             # Processes payments, returns transaction ID
-│       ├── go.mod
+│       ├── main.py            # Processes payments, returns transaction ID
+│       ├── requirements.txt
 │       └── Dockerfile
 │
 ├── k8s/
@@ -82,7 +82,7 @@ rbih-payments/
 │
 ├── .github/
 │   └── workflows/
-│       └── deploy.yaml         # Full CI/CD: Build → Scan → Approve → Deploy
+│       └── main.yaml         # Full CI/CD: Build → Scan → Approve → Deploy
 │
 ├── scripts/
 │   └── setup.sh               # Full local cluster setup (kind + registry)
