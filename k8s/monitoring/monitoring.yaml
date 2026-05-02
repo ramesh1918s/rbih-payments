@@ -186,11 +186,13 @@ metadata:
   name: prometheus
   namespace: monitoring
 spec:
+  type: NodePort
   selector:
     app: prometheus
   ports:
     - port: 9090
       targetPort: 9090
+      nodePort: 30091
 ---
 # ─────────────────────────────────────────
 # GRAFANA — Datasource auto-provision
@@ -434,4 +436,5 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
+      nodePort: 32710
   type: NodePort

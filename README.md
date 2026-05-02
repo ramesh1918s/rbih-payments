@@ -117,8 +117,9 @@ Expected response:
 
 Access Grafana:
 ```bash
-kubectl port-forward svc/grafana 3000:3000 -n monitoring
-# open http://localhost:3000  (admin / admin)
+Prometheus → http://43.205.91.169:30091
+Grafana → http://43.205.91.169:32710 (login: admin / rbih@admin2026)
+
 ```
 
 Prometheus metrics exposed by both services:
